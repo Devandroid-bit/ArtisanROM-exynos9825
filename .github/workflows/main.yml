@@ -1,0 +1,127 @@
+name: Import target mods
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: import-prebuilts
+  cancel-in-progress: false
+
+jobs:
+  import-prebuilts:
+    name: Import prebuilts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sixteen branch
+        uses: actions/checkout@v4
+        with:
+          ref: sixteen
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone source repository
+        run: |
+          git clone \
+            --depth=1 \
+            --branch sixteenQPR2 \
+            https://github.com/Cerberus-crypto/MonsterROM.git \
+            source-repo
+
+      - name: Import directories
+        run: |
+          set -euo pipefail
+
+          IMPORT_PATHS=(
+            "platform/exynos9825"
+            "prebuilts/samsung/p3sxxx"
+            "target/d1xks"
+          )
+
+          for PATH_TO_IMPORT in "${IMPORT_PATHS[@]}"; do
+            SOURCE_DIR="source-repo/${PATH_TO_IMPORT}"
+            DEST_DIR="${PATH_TO_IMPORT}"
+
+            if [ ! -d "$SOURCE_DIR" ]; then
+              echo "::error::Source directory does not exist: $SOURCE_DIR"
+              exit 1
+            fi
+
+            echo "Importing ${PATH_TO_IMPORT}..."
+
+            rm -rf "$DEST_DIR"
+            mkdir -p "$DEST_DIR"
+
+            rsync -a --delete \
+              "$SOURCE_DIR/" \
+              "$DEST_DIR/"
+
+            echo "Successfully imported ${PATH_TO_IMPORT}."
+          done
+
+      - name: Verify imported directories
+        run: |
+          set -euo pipefail
+
+          IMPORT_PATHS=(
+            "platform/exynos9825"
+            "prebuilts/samsung/p3sxxx"
+            "target/d1xks"
+          )
+
+          echo "Imported directory file counts:"
+
+          for PATH_TO_CHECK in "${IMPORT_PATHS[@]}"; do
+            if [ ! -d "$PATH_TO_CHECK" ]; then
+              echo "::error::Imported directory is missing: $PATH_TO_CHECK"
+              exit 1
+            fi
+
+            FILE_COUNT=$(find "$PATH_TO_CHECK" -type f | wc -l)
+
+            echo "  ${PATH_TO_CHECK}: ${FILE_COUNT} files"
+          done
+
+      - name: Check for changes
+        id: changes
+        run: |
+          set -euo pipefail
+
+          git add -A \
+            platform/exynos9825 \
+            prebuilts/samsung/p3sxxx \
+            target/d1xks
+
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes detected."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Changes detected."
+            git diff --cached --stat
+          fi
+
+      - name: Commit changes
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git commit \
+            -m "import prebuilts for p3sxxx and d1xks" \
+            -m "Author and credits: @Ocin4ever"
+
+      - name: Push changes to sixteen
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git push origin HEAD:sixteen
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf source-repo
