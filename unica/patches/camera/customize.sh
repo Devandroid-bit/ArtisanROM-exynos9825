@@ -270,10 +270,6 @@ if [[ "$SOURCE_CAMERA_CONFIG_VENDOR_LIB_INFO" == *"hybridhdr.arcsoft.v1"* ]] && 
     DELETE_FROM_WORK_DIR "system" "system/lib64/libhybridHDR_wrapper.camera.samsung.so"
     DELETE_FROM_WORK_DIR "system" "system/lib64/libhybrid_high_dynamic_range.arcsoft.so"
 fi
-if [[ "$SOURCE_CAMERA_CONFIG_VENDOR_LIB_INFO" == *"image_enhance.arcsoft.v1"* ]] && \
-        [[ "$TARGET_CAMERA_CONFIG_VENDOR_LIB_INFO" != *"image_enhance.arcsoft.v1"* ]]; then
-    DELETE_FROM_WORK_DIR "system" "system/lib64/libimage_enhancement.arcsoft.so"
-fi
 if [[ "$SOURCE_CAMERA_CONFIG_VENDOR_LIB_INFO" == *"pro_single_rgb.mpi.v1"* ]] && \
         [[ "$TARGET_CAMERA_CONFIG_VENDOR_LIB_INFO" != *"pro_single_rgb.mpi.v1"* ]]; then
     DELETE_FROM_WORK_DIR "system" "system/lib64/libAIQSolution_MPISingleRGB40.camera.samsung.so"
@@ -320,6 +316,25 @@ if [ -f "$WORK_DIR/system/system/lib64/libImageSegmenter_v1.camera.samsung.so" ]
 fi
 
 # Fix object capture
+# One UI 8.0 updates libobjectcapture_jni.arcsoft.so and can legitimately replace
+# the signature used by the legacy cross-device patch. Preserve the patch when
+# the known signature is present, while allowing newer binary revisions through.
+PATCH_OBJECT_CAPTURE()
+{
+    local FILE="$WORK_DIR/system/system/lib64/libobjectcapture_jni.arcsoft.so"
+    local FROM="e503162a47020094e022009121008052e203162a"
+    local TO="$1"
+    if [ ! -f "$FILE" ]; then
+        LOGW "Skipping object capture patch: library is absent"
+        return 0
+    fi
+    if xxd -p -c 0 "$FILE" | grep -q "$FROM"; then
+        HEX_PATCH "$FILE" "$FROM" "$TO"
+    else
+        LOGW "Skipping object capture patch: legacy signature is absent"
+    fi
+}
+
 if [[ "$TARGET_OS_SINGLE_SYSTEM_IMAGE" == "essi" ]]; then
     if {
         [[ "$(GET_PROP "system" "ro.product.device")" =~ r0|g0|b0 ]] && \
@@ -328,16 +343,13 @@ if [[ "$TARGET_OS_SINGLE_SYSTEM_IMAGE" == "essi" ]]; then
         [[ "$(GET_PROP "system" "ro.product.device")" == "a56"* ]] && \
             [[ "$(GET_PROP "vendor" "ro.product.vendor.device")" != "a56"* ]]
     }; then
-        HEX_PATCH "$WORK_DIR/system/system/lib64/libobjectcapture_jni.arcsoft.so" \
-            "e503162a47020094e022009121008052e203162a" "8500805247020094e02200912100805282008052"
+        PATCH_OBJECT_CAPTURE "8500805247020094e02200912100805282008052"
     elif ! [[ "$(GET_PROP "system" "ro.product.device")" =~ r0|g0|b0 ]] && \
             [[ "$(GET_PROP "vendor" "ro.product.vendor.device")" =~ r0|g0|b0 ]]; then
-        HEX_PATCH "$WORK_DIR/system/system/lib64/libobjectcapture_jni.arcsoft.so" \
-            "e503162a47020094e022009121008052e203162a" "4500805247020094e02200912100805242008052"
+        PATCH_OBJECT_CAPTURE "4500805247020094e02200912100805242008052"
     elif [[ "$(GET_PROP "system" "ro.product.device")" != "a56"* ]] && \
             [[ "$(GET_PROP "vendor" "ro.product.vendor.device")" == "a56"* ]]; then
-        HEX_PATCH "$WORK_DIR/system/system/lib64/libobjectcapture_jni.arcsoft.so" \
-            "e503162a47020094e022009121008052e203162a" "c500805247020094e022009121008052c2008052"
+        PATCH_OBJECT_CAPTURE "c500805247020094e022009121008052c2008052"
     fi
 fi
 
@@ -359,7 +371,7 @@ if [ -f "$WORK_DIR/vendor/lib64/libDualCamBokehCapture.camera.samsung.so" ]; the
         HEX_PATCH "$WORK_DIR/vendor/lib64/liblivefocus_preview_engine.so" \
             "726f2e70726f647563742e6e616d6500" "726f2e756e6963612e63616d65726100"
         LOG "- Patching /system/system/etc/selinux/plat_property_contexts"
-        EVAL "echo \"ro.unica.camera u:object_r:build_prop:s0 exact string\" >> \"$WORK_DIR/system/system/etc/selinux/plat_property_contexts\""
+        EVAL "echo \"ro.unica.camera u:object_r:build_prop:s0 exact string\"  >> \"$WORK_DIR/system/system/etc/selinux/plat_property_contexts\""
         SET_PROP "system" "ro.unica.camera" "$(GET_PROP "$FW_DIR/$TARGET_FIRMWARE_PATH/system/system/build.prop" "ro.product.system.name")"
     fi
 fi
