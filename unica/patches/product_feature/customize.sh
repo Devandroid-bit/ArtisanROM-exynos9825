@@ -118,8 +118,8 @@ else
 fi
 
 # SEC_PRODUCT_FEATURE_AUDIO_SUPPORT_VIRTUAL_VIBRATION_SOUND
-if $SOURCE_AUDIO_SUPPORT_VIRTUAL_VIBRATION_SOUND; then
-    if ! $TARGET_AUDIO_SUPPORT_VIRTUAL_VIBRATION_SOUND; then
+if $SOURCE_AUDIO_SUPPORT_VIRTUAL_VIBRATION; then
+    if ! $TARGET_AUDIO_SUPPORT_VIRTUAL_VIBRATION; then
         APPLY_PATCH "system" "system/framework/framework.jar" \
             "$MODPATH/audio/virtual_vib/framework.jar/0001-Disable-virtual-vibration-support.patch"
         APPLY_PATCH "system" "system/framework/services.jar" \
@@ -137,9 +137,9 @@ if $SOURCE_AUDIO_SUPPORT_VIRTUAL_VIBRATION_SOUND; then
             "$MODPATH/audio/virtual_vib/SettingsProvider.apk/0001-Disable-virtual-vibration-support.patch"
     fi
 else
-    if $TARGET_AUDIO_SUPPORT_VIRTUAL_VIBRATION_SOUND; then
+    if $TARGET_AUDIO_SUPPORT_VIRTUAL_VIBRATION; then
         # TODO handle this condition
-        LOG_MISSING_PATCHES "SOURCE_AUDIO_SUPPORT_VIRTUAL_VIBRATION_SOUND" "TARGET_AUDIO_SUPPORT_VIRTUAL_VIBRATION_SOUND"
+        LOG_MISSING_PATCHES "SOURCE_AUDIO_SUPPORT_VIRTUAL_VIBRATION" "TARGET_AUDIO_SUPPORT_VIRTUAL_VIBRATION"
     fi
 fi
 
@@ -482,65 +482,73 @@ fi
 if [[ "$SOURCE_LCD_CONFIG_HFR_MODE" != "$TARGET_LCD_CONFIG_HFR_MODE" ]]; then
     SET_FLOATING_FEATURE_CONFIG "SEC_FLOATING_FEATURE_LCD_CONFIG_HFR_MODE" "$TARGET_LCD_CONFIG_HFR_MODE"
 
-    SMALI_PATCH "system" "system/framework/framework.jar" \
+    # One UI 8.0 can remove legacy HFR literals from individual SMALI methods.
+    # The floating feature remains authoritative; retain binary adjustments
+    # where present without failing newer source revisions.
+    SMALI_PATCH_HFR_MODE()
+    {
+        SMALI_PATCH "$@" || LOGW "Skipping legacy HFR mode SMALI patch"
+    }
+
+    SMALI_PATCH_HFR_MODE "system" "system/framework/framework.jar" \
         "smali_classes2/android/inputmethodservice/SemImsRune.smali" "replace" \
         "<clinit>()V" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system" "system/framework/framework.jar" \
+    SMALI_PATCH_HFR_MODE "system" "system/framework/framework.jar" \
         "smali_classes6/com/samsung/android/hardware/display/RefreshRateConfig.smali" "replace" \
         "dump(Ljava/io/PrintWriter;Ljava/lang/String;Z)V" \
         "HFR_MODE: $SOURCE_LCD_CONFIG_HFR_MODE" \
         "HFR_MODE: $TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system" "system/framework/framework.jar" \
+    SMALI_PATCH_HFR_MODE "system" "system/framework/framework.jar" \
         "smali_classes6/com/samsung/android/hardware/display/RefreshRateConfig.smali" "replace" \
         "getMainInstance()Lcom/samsung/android/hardware/display/RefreshRateConfig;" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system" "system/framework/framework.jar" \
+    SMALI_PATCH_HFR_MODE "system" "system/framework/framework.jar" \
         "smali_classes6/com/samsung/android/rune/CoreRune.smali" "replace" \
         "<clinit>()V" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system" "system/framework/gamemanager.jar" \
+    SMALI_PATCH_HFR_MODE "system" "system/framework/gamemanager.jar" \
         "smali/com/samsung/android/game/GameManagerService.smali" "replace" \
         "isVariableRefreshRateSupported()Ljava/lang/String;" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system" "system/framework/secinputdev-service.jar" \
+    SMALI_PATCH_HFR_MODE "system" "system/framework/secinputdev-service.jar" \
         "smali/com/samsung/android/hardware/secinputdev/utils/SemInputFeatures.smali" "replaceall" \
         "\\\"$SOURCE_LCD_CONFIG_HFR_MODE\\\"" \
         "\\\"$TARGET_LCD_CONFIG_HFR_MODE\\\""
-    SMALI_PATCH "system" "system/framework/secinputdev-service.jar" \
+    SMALI_PATCH_HFR_MODE "system" "system/framework/secinputdev-service.jar" \
         "smali/com/samsung/android/hardware/secinputdev/utils/SemInputFeaturesExtra.smali" "replaceall" \
         "\\\"$SOURCE_LCD_CONFIG_HFR_MODE\\\"" \
         "\\\"$TARGET_LCD_CONFIG_HFR_MODE\\\""
-    SMALI_PATCH "system" "system/framework/services.jar" \
+    SMALI_PATCH_HFR_MODE "system" "system/framework/services.jar" \
         "smali_classes2/com/android/server/power/PowerManagerUtil.smali" "replace" \
         "<clinit>()V" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system" "system/priv-app/SecSettings/SecSettings.apk" \
+    SMALI_PATCH_HFR_MODE "system" "system/priv-app/SecSettings/SecSettings.apk" \
         "smali_classes4/com/samsung/android/settings/display/SecDisplayUtils.smali" "replace" \
         "getHighRefreshRateSeamlessType(I)I" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system" "system/priv-app/SecSettings/SecSettings.apk" \
+    SMALI_PATCH_HFR_MODE "system" "system/priv-app/SecSettings/SecSettings.apk" \
         "smali_classes4/com/samsung/android/settings/display/SecDisplayUtils.smali" "replace" \
         "isSupportMaxHS60RefreshRate(I)Z" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system" "system/priv-app/SettingsProvider/SettingsProvider.apk" \
+    SMALI_PATCH_HFR_MODE "system" "system/priv-app/SettingsProvider/SettingsProvider.apk" \
         "smali/com/android/providers/settings/DatabaseHelper.smali" "replace" \
         "loadRefreshRateMode(Landroid/database/sqlite/SQLiteStatement;Ljava/lang/String;)V" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system_ext" "priv-app/SystemUI/SystemUI.apk" \
+    SMALI_PATCH_HFR_MODE "system_ext" "priv-app/SystemUI/SystemUI.apk" \
         "smali/com/android/systemui/BasicRune.smali" "replace" \
         "<clinit>()V" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
         "$TARGET_LCD_CONFIG_HFR_MODE"
-    SMALI_PATCH "system_ext" "priv-app/SystemUI/SystemUI.apk" \
+    SMALI_PATCH_HFR_MODE "system_ext" "priv-app/SystemUI/SystemUI.apk" \
         "smali/com/android/systemui/LsRune.smali" "replace" \
         "<clinit>()V" \
         "$SOURCE_LCD_CONFIG_HFR_MODE" \
